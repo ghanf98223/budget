@@ -1,4 +1,4 @@
-import { getCache, setCache, addCache, deleteCache, clearCache, getPendingOps, setPendingOps, addPendingOp } from './storage.js';
+import { getCache, setCache, addCache, deleteCache, clearCache, getPendingOps, setPendingOps, addPendingOp, clearPendingOps } from './storage.js';
 import { fetchRecords, createRecord, deleteRecord as deleteRemote, clearRecords } from './sync.js';
 import { renderApp, bindUIActions, initUI } from './ui.js';
 
@@ -45,6 +45,7 @@ async function syncFromServer() {
     await processPendingQueue();
     const records = await fetchRecords();
     setCache(records);
+    clearPendingOps();
     renderApp(records);
     return records;
   } catch (error) {

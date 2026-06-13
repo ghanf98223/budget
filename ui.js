@@ -60,6 +60,10 @@ function onMonthChange(delta) {
   renderApp(getCache());
 }
 
+function monthStr() {
+  return `${currentYear} 年 ${currentMonth + 1} 月`;
+}
+
 export function initUI() {
   setType('expense');
   const sortSelect = document.getElementById('sortSelect');
