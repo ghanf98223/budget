@@ -54,6 +54,16 @@
     color: var(--brown);
     letter-spacing: .04em;
   }
+  .sync-status {
+    display: inline-block;
+    margin-left: 12px;
+    font-size: .82rem;
+    color: #6B3E1F;
+    background: rgba(232,160,74,0.14);
+    padding: 4px 10px;
+    border-radius: 999px;
+    vertical-align: middle;
+  }
   .burger {
     width: 36px; height: 36px;
     background: none; border: none; cursor: pointer;
@@ -347,7 +357,10 @@
 
 <!-- TOP BAR -->
 <header class="topbar">
-  <span class="topbar-title">📒 帳本</span>
+  <div>
+    <span class="topbar-title">📒 帳本</span>
+    <span class="sync-status" id="pendingCount">待同步 0 筆</span>
+  </div>
   <button class="burger" id="burgerBtn" aria-label="選單">
     <span></span><span></span><span></span>
   </button>
@@ -357,28 +370,28 @@
 <div class="drawer-overlay" id="drawerOverlay"></div>
 <nav class="drawer" id="drawer">
   <div class="drawer-label">頁面</div>
-  <a class="active" data-tab="records" onclick="switchTab('records',this)">📋 記帳紀錄</a>
-  <a data-tab="charts" onclick="switchTab('charts',this)">📊 統計圖表</a>
+  <a class="active" data-tab="records">📋 記帳紀錄</a>
+  <a data-tab="charts">📊 統計圖表</a>
   <div class="drawer-label">操作</div>
-  <a onclick="exportToCSV()">📥 匯出資料 (CSV)</a>
-  <a onclick="openModal()">＋ 新增記錄</a>
-  <a onclick="clearAll()">🗑 清除全部</a>
+  <a id="exportLink">📥 匯出資料 (CSV)</a>
+  <a id="openModalLink">＋ 新增記錄</a>
+  <a id="clearAllLink">🗑 清除全部</a>
 </nav>
 
 <!-- MAIN -->
 <main>
   <!-- TABS -->
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('records',this)" data-tab="records">📋 紀錄</button>
-    <button class="tab-btn" onclick="switchTab('charts',this)" data-tab="charts">📊 圖表</button>
+    <button class="tab-btn active" data-tab="records">📋 紀錄</button>
+    <button class="tab-btn" data-tab="charts">📊 圖表</button>
   </div>
 
   <!-- ── RECORDS PAGE ── -->
   <section id="page-records">
     <div class="month-nav">
-      <button onclick="changeMonth(-1)">‹</button>
+      <button type="button">‹</button>
       <h2 id="monthLabel"></h2>
-      <button onclick="changeMonth(1)">›</button>
+      <button type="button">›</button>
     </div>
 
     <div class="summary-row">
@@ -412,9 +425,9 @@
   <!-- ── CHARTS PAGE ── -->
   <section id="page-charts" style="display:none">
     <div class="month-nav">
-      <button onclick="changeMonth(-1)">‹</button>
+      <button type="button">‹</button>
       <h2 id="monthLabelChart"></h2>
-      <button onclick="changeMonth(1)">›</button>
+      <button type="button">›</button>
     </div>
     <div class="chart-card">
       <div class="chart-title">支出分類佔比</div>
@@ -433,15 +446,15 @@
 
 
 <!-- FAB -->
-<button class="fab" onclick="openModal()" aria-label="新增記錄">＋</button>
+<button class="fab" aria-label="新增記錄">＋</button>
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>新增記錄</h3>
     <div class="modal-tabs">
-      <button class="modal-tab exp active" id="tabExp" onclick="setType('expense')">支出</button>
-      <button class="modal-tab inc" id="tabInc" onclick="setType('income')">收入</button>
+      <button class="modal-tab exp active" id="tabExp" type="button">支出</button>
+      <button class="modal-tab inc" id="tabInc" type="button">收入</button>
     </div>
     <div class="field">
       <label>金額</label>
@@ -460,407 +473,11 @@
       <input type="date" id="inputDate">
     </div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal()">取消</button>
-      <button class="btn-save" onclick="saveRecord()">儲存</button>
+      <button class="btn-cancel" type="button">取消</button>
+      <button class="btn-save" type="button">儲存</button>
     </div>
   </div>
 </div>
-
-<script>
-/* ── DATA ── */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx07fGQfn7PIgqKxyLtJIXsFvJPei8UtbPTcqsWaa650MjnSSwX7TRi9D3B53vJIYDyvg/exec";
-
-const CATEGORIES = {
-  expense: ['🍜 餐飲','🚌 交通','🏠 住房','🛍 購物','🎮 娛樂','💊 醫療','📚 教育','💡 水電','📱 通訊','💰 其他'],
-  income:  ['💼 薪資','🎁 獎金','📈 投資','🤝 兼職','🎀 零用錢','💰 其他']
-};
-
-let records = JSON.parse(localStorage.getItem('budgetRecords') || '[]');
-let currentType = 'expense';
-let currentYear = new Date().getFullYear();
-let currentMonth = new Date().getMonth();
-let currentTab = 'records';
-let charts = {};
-
-/* ── BURGER / DRAWER ── */
-const burgerBtn = document.getElementById('burgerBtn');
-const drawer = document.getElementById('drawer');
-const drawerOverlay = document.getElementById('drawerOverlay');
-
-burgerBtn.addEventListener('click', () => {
-  const open = drawer.classList.toggle('open');
-  drawerOverlay.classList.toggle('open', open);
-  burgerBtn.classList.toggle('open', open);
-});
-drawerOverlay.addEventListener('click', closeDrawer);
-function closeDrawer() {
-  drawer.classList.remove('open');
-  drawerOverlay.classList.remove('open');
-  burgerBtn.classList.remove('open');
-}
-
-/* ── TAB SWITCH ── */
-function switchTab(tab, el) {
-  currentTab = tab;
-  document.getElementById('page-records').style.display = tab === 'records' ? '' : 'none';
-  document.getElementById('page-charts').style.display  = tab === 'charts'  ? '' : 'none';
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.drawer a[data-tab]').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
-  if (tab === 'charts') renderCharts();
-  closeDrawer();
-}
-
-/* ── MONTH NAV ── */
-function changeMonth(d) {
-  currentMonth += d;
-  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-  if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
-  renderAll();
-}
-function monthStr() {
-  return `${currentYear} 年 ${currentMonth + 1} 月`;
-}
-
-/* ── MODAL ── */
-function openModal() {
-  closeDrawer();
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById('inputDate').value = today;
-  document.getElementById('inputAmount').value = '';
-  document.getElementById('inputNote').value = '';
-  setType('expense');
-  document.getElementById('modalOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('inputAmount').focus(), 350);
-}
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('open');
-}
-document.getElementById('modalOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('modalOverlay')) closeModal();
-});
-
-function setType(t) {
-  currentType = t;
-  document.getElementById('tabExp').classList.toggle('active', t === 'expense');
-  document.getElementById('tabInc').classList.toggle('active', t === 'income');
-  const sel = document.getElementById('inputCategory');
-  sel.innerHTML = CATEGORIES[t].map(c => `<option>${c}</option>`).join('');
-}
-
-/* ── SAVE RECORD ── */
-function saveRecord() {
-  const amt = parseFloat(document.getElementById('inputAmount').value);
-  const cat = document.getElementById('inputCategory').value;
-  const note = document.getElementById('inputNote').value.trim();
-  const date = document.getElementById('inputDate').value;
-  if (!amt || amt <= 0) { alert('請輸入有效金額'); return; }
-  if (!date) { alert('請選擇日期'); return; }
-  records.push({ id: Date.now(), type: currentType, amount: amt, category: cat, note, date });
-  save();
-  closeModal();
-  renderAll();
-}
-
-/* ── DELETE ── */
-function deleteRecord(id) {
-  if (!confirm('確定刪除？')) return;
-  records = records.filter(r => r.id !== id);
-  save();
-  renderAll();
-}
-
-function clearAll() {
-  if (!confirm('確定清除全部資料？此操作無法復原。')) return;
-  records = [];
-  save();
-  renderAll();
-  closeDrawer();
-}
-
-function save() {
-  localStorage.setItem('budgetRecords', JSON.stringify(records));
-  
-  // 每次本機存檔時，自動檢查網路狀態，若有連網就同步到 Google 雲端
-  syncToCloud();
-}
-
-// 🌐 新增雲端同步處理
-function syncToCloud() {
-  // 檢查變數是否有被正確填寫，如果是預設範例就不觸發
-  if (typeof GAS_URL === 'undefined' || GAS_URL.includes("填入") || GAS_URL === "") return;
-
-  // navigator.onLine 負責檢查目前瀏覽器有沒有連網
-  if (!navigator.onLine) {
-    console.log("⚠️ 目前處於離線狀態，資料已安全暫存在手機 localStorage。");
-    return;
-  }
-
-  console.log("☁️ 偵測到網路連線，開始同步至 Google 雲端試算表...");
-  
-  fetch(GAS_URL, {
-    method: "POST",
-    body: JSON.stringify(records),
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8" // 使用 text/plain 避免觸發複雜的 CORS 預檢限制
-    }
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      console.log("✅ 雲端試算表同步完成！");
-    } else {
-      console.error("❌ 雲端同步失敗：", data.message);
-    }
-  })
-  .catch(err => console.error("💥 傳輸發生異常錯誤：", err));
-}
-
-// 【斷網續傳機制】當手機/電腦從「離線」變成「連線」的瞬間，自動喚醒補發同步
-window.addEventListener('online', syncToCloud);
-
-/* ── GET MONTH RECORDS ── */
-function monthRecords() {
-  return records.filter(r => {
-    const d = new Date(r.date);
-    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-  });
-}
-
-/* ── WEEK NUMBER (within month, 1-based) ── */
-function weekOfMonth(dateStr) {
-  const d = new Date(dateStr);
-  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-  return Math.ceil((d.getDate() + firstDay) / 7);
-}
-
-/* ── RENDER ALL ── */
-function renderAll() {
-  document.getElementById('monthLabel').textContent = monthStr();
-  document.getElementById('monthLabelChart').textContent = monthStr();
-  renderSummary();
-  renderRecords();
-  if (currentTab === 'charts') renderCharts();
-}
-
-/* ── SUMMARY ── */
-function renderSummary() {
-  const mr = monthRecords();
-  const inc = mr.filter(r => r.type === 'income').reduce((s,r) => s + r.amount, 0);
-  const exp = mr.filter(r => r.type === 'expense').reduce((s,r) => s + r.amount, 0);
-  const bal = inc - exp;
-  document.getElementById('sumIncome').textContent  = `$${inc.toLocaleString()}`;
-  document.getElementById('sumExpense').textContent = `$${exp.toLocaleString()}`;
-  const balEl = document.getElementById('sumBalance');
-  balEl.textContent = `$${bal.toLocaleString()}`;
-  balEl.style.color = bal >= 0 ? 'var(--income)' : 'var(--expense)';
-}
-
-/* ── RENDER RECORDS (weekly groups) ── */
-function renderRecords() {
-  const sort = document.getElementById('sortSelect').value;
-  let mr = [...monthRecords()];
-
-  mr.sort((a,b) => {
-    if (sort === 'date-desc')   return new Date(b.date) - new Date(a.date);
-    if (sort === 'date-asc')    return new Date(a.date) - new Date(b.date);
-    if (sort === 'amount-desc') return b.amount - a.amount;
-    if (sort === 'amount-asc')  return a.amount - b.amount;
-  });
-
-  const container = document.getElementById('recordsList');
-  if (mr.length === 0) {
-    container.innerHTML = `<div class="empty"><span class="emoji">🍃</span>這個月還沒有記錄<br>點 ＋ 開始記帳</div>`;
-    return;
-  }
-
-  // Group by week
-  const byWeek = {};
-  mr.forEach(r => {
-    const w = weekOfMonth(r.date);
-    if (!byWeek[w]) byWeek[w] = [];
-    byWeek[w].push(r);
-  });
-
-  let html = '';
-  Object.keys(byWeek).sort((a,b) => sort.startsWith('date-asc') ? a-b : b-a).forEach(w => {
-    const wRecords = byWeek[w];
-    const wInc = wRecords.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
-    const wExp = wRecords.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
-    const wBal = wInc - wExp;
-    const balClass = wBal >= 0 ? 'pos' : 'neg';
-    html += `
-      <div class="week-block">
-        <div class="week-header">
-          <span class="week-label">第 ${w} 週</span>
-          <span class="week-bal ${balClass}">
-            結餘 ${wBal >= 0 ? '+' : ''}$${wBal.toLocaleString()}
-          </span>
-        </div>`;
-    wRecords.forEach(r => {
-      const emoji = r.category.match(/^\S+/)?.[0] || '💰';
-      html += `
-        <div class="record-item">
-          <div class="record-icon ${r.type}">${emoji}</div>
-          <div class="record-info">
-            <div class="record-title">${r.category.replace(/^\S+\s?/,'')}</div>
-            <div class="record-meta">${r.date}${r.note ? ' · '+r.note : ''}</div>
-          </div>
-          <span class="record-amount ${r.type}">
-            ${r.type==='income'?'+':'-'}$${r.amount.toLocaleString()}
-          </span>
-          <button class="del-btn" onclick="deleteRecord(${r.id})" aria-label="刪除">✕</button>
-        </div>`;
-    });
-    html += `</div>`;
-  });
-  container.innerHTML = html;
-}
-
-/* ── CHARTS ── */
-function renderCharts() {
-  const mr = monthRecords();
-  renderPie(mr);
-  renderBar(mr);
-  renderLine();
-}
-
-function destroyChart(key) {
-  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
-}
-
-const PIE_COLORS = ['#E8A04A','#D4682A','#C0442B','#5A8A5E','#6B3E1F','#A8733A','#7A9E7E','#D4956A','#8B5E3C','#B08060'];
-
-function renderPie(mr) {
-  destroyChart('pie');
-  const expenses = mr.filter(r => r.type === 'expense');
-  if (expenses.length === 0) {
-    document.getElementById('pieChart').parentElement.querySelector('.chart-title').textContent = '支出分類佔比（無資料）';
-    return;
-  }
-  const catMap = {};
-  expenses.forEach(r => {
-    const k = r.category;
-    catMap[k] = (catMap[k]||0) + r.amount;
-  });
-  const labels = Object.keys(catMap);
-  const data = labels.map(k => catMap[k]);
-  charts.pie = new Chart(document.getElementById('pieChart'), {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: PIE_COLORS.slice(0,labels.length), borderWidth: 2, borderColor: '#FAF7F2' }]
-    },
-    options: {
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, color: '#6B3E1F', boxWidth: 14 } } },
-      cutout: '52%'
-    }
-  });
-}
-
-function renderBar(mr) {
-  destroyChart('bar');
-  const weeks = [1,2,3,4,5,6];
-  const incData = weeks.map(w => mr.filter(r=>r.type==='income' && weekOfMonth(r.date)===w).reduce((s,r)=>s+r.amount,0));
-  const expData = weeks.map(w => mr.filter(r=>r.type==='expense'&& weekOfMonth(r.date)===w).reduce((s,r)=>s+r.amount,0));
-  const maxW = Math.max(...mr.map(r => weekOfMonth(r.date)), 4);
-  charts.bar = new Chart(document.getElementById('barChart'), {
-    type: 'bar',
-    data: {
-      labels: Array.from({length: maxW}, (_,i) => `第${i+1}週`),
-      datasets: [
-        { label:'收入', data: incData.slice(0,maxW), backgroundColor:'rgba(90,138,94,0.72)', borderRadius: 6 },
-        { label:'支出', data: expData.slice(0,maxW), backgroundColor:'rgba(192,68,43,0.72)', borderRadius: 6 }
-      ]
-    },
-    options: {
-      plugins: { legend: { labels: { font:{size:11}, color:'#6B3E1F' } } },
-      scales: {
-        x: { ticks:{color:'#9B7355'}, grid:{display:false} },
-        y: { ticks:{color:'#9B7355'}, grid:{color:'rgba(107,62,31,0.08)'} }
-      }
-    }
-  });
-}
-
-function renderLine() {
-  destroyChart('line');
-  // Last 6 months
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    let m = currentMonth - i, y = currentYear;
-    if (m < 0) { m += 12; y -= 1; }
-    months.push({ y, m, label: `${y}/${m+1}` });
-  }
-  const incData = months.map(({y,m}) =>
-    records.filter(r=>{ const d=new Date(r.date); return d.getFullYear()===y&&d.getMonth()===m&&r.type==='income'; })
-           .reduce((s,r)=>s+r.amount,0)
-  );
-  const expData = months.map(({y,m}) =>
-    records.filter(r=>{ const d=new Date(r.date); return d.getFullYear()===y&&d.getMonth()===m&&r.type==='expense'; })
-           .reduce((s,r)=>s+r.amount,0)
-  );
-  charts.line = new Chart(document.getElementById('lineChart'), {
-    type: 'line',
-    data: {
-      labels: months.map(m=>m.label),
-      datasets: [
-        { label:'收入', data:incData, borderColor:'#5A8A5E', backgroundColor:'rgba(90,138,94,0.12)', tension:.4, fill:true, pointRadius:4 },
-        { label:'支出', data:expData, borderColor:'#D4682A', backgroundColor:'rgba(212,104,42,0.10)', tension:.4, fill:true, pointRadius:4 }
-      ]
-    },
-    options: {
-      plugins: { legend: { labels: { font:{size:11}, color:'#6B3E1F' } } },
-      scales: {
-        x: { ticks:{color:'#9B7355'}, grid:{display:false} },
-        y: { ticks:{color:'#9B7355'}, grid:{color:'rgba(107,62,31,0.08)'} }
-      }
-    }
-  });
-}
-
-/* ── INIT ── */
-setType('expense');
-renderAll();
-
-function exportToCSV() {
-  if (records.length === 0) {
-    alert("目前沒有任何記帳紀錄可以匯出喔！");
-    return;
-  }
-
-  let csvContent = "\uFEFF";
-  csvContent += "日期,類型,分類,金額,備註\n";
-
-  records.forEach(r => {
-    const typeText = r.type === 'income' ? '收入' : '支出';
-    const catText  = `"${r.category.replace(/"/g, '""')}"`;              // Bug 1 修正
-    const amtText  = Number.isInteger(r.amount) ? r.amount : r.amount.toFixed(2); // Bug 3 修正
-    const noteText = r.note ? `"${r.note.replace(/"/g, '""')}"` : '';
-
-    csvContent += `${r.date},${typeText},${catText},${amtText},${noteText}\n`;
-  });
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `我的帳本備份_${new Date().toISOString().slice(0,10)}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  closeDrawer();
-}
-
-</script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('ServiceWorker registered.', reg))
-      .catch(err => console.warn('ServiceWorker registration failed:', err));
-  });
-}
-</script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
